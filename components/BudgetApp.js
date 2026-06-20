@@ -8,6 +8,52 @@ import {
 } from "../lib/budget";
 
 const DOC_REF = () => doc(db, "budget", "judy");
+const PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD || "judy2026";
+
+function LoginScreen({ onLogin }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+
+  function handleLogin() {
+    if (pw === PASSWORD) {
+      sessionStorage.setItem("budget_auth", "1");
+      onLogin();
+    } else {
+      setError(true);
+      setPw("");
+    }
+  }
+
+  return (
+    <div style={{ background: "#0f1117", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: "#1a1d2e", borderRadius: 16, padding: 32, width: "100%", maxWidth: 360, border: "1px solid #2a2d3e" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>💰</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#e8eaf0" }}>每日記帳</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>請輸入密碼</div>
+        </div>
+        <input
+          type="password"
+          value={pw}
+          onChange={e => { setPw(e.target.value); setError(false); }}
+          onKeyDown={e => e.key === "Enter" && handleLogin()}
+          placeholder="密碼"
+          autoFocus
+          style={{
+            width: "100%", background: "#0f1117", border: `1px solid ${error ? "#f87171" : "#2a2d3e"}`,
+            borderRadius: 8, color: "#e8eaf0", padding: "12px 14px", fontSize: 16,
+            marginBottom: 8, boxSizing: "border-box"
+          }}
+        />
+        {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 8 }}>密碼錯誤，請再試一次</div>}
+        <button onClick={handleLogin} style={{
+          width: "100%", background: "linear-gradient(135deg,#818cf8,#6366f1)", border: "none",
+          borderRadius: 8, color: "#fff", padding: "12px 0", fontSize: 15, fontWeight: 700, cursor: "pointer"
+        }}>登入</button>
+      </div>
+    </div>
+  );
+}
 
 function getTodayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -38,6 +84,7 @@ function Btn({ onClick, color, children, style }) {
 
 // ── Main App ────────────────────────────────────────────────
 export default function BudgetApp() {
+  const [authed, setAuthed] = useState(false);
   const [days, setDays] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,6 +97,11 @@ export default function BudgetApp() {
   const [editAmount, setEditAmount] = useState("");
   const [showNotif, setShowNotif] = useState(false);
   const [notifText, setNotifText] = useState("");
+
+  // Check auth
+  useEffect(() => {
+    if (sessionStorage.getItem("budget_auth") === "1") setAuthed(true);
+  }, []);
 
   // Load from Firebase
   useEffect(() => {
@@ -138,6 +190,8 @@ export default function BudgetApp() {
   }
 
   const allDayKeys = Object.keys(days).filter(d => d >= START_DATE).sort().reverse();
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
 
   if (loading) return (
     <div style={{ background: "#0f1117", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#818cf8", fontSize: 16 }}>
