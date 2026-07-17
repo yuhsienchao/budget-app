@@ -59,7 +59,6 @@ function getTodayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ── Small UI atoms ──────────────────────────────────────────
 function StatCard({ label, value, sub, accent, span }) {
   return (
     <div style={{
@@ -73,16 +72,27 @@ function StatCard({ label, value, sub, accent, span }) {
   );
 }
 
-function Btn({ onClick, color, children, style }) {
+function Btn({ onClick, color, children }) {
   return (
     <button onClick={onClick} style={{
       background: `${color}22`, border: `1px solid ${color}55`, borderRadius: 6,
-      color, padding: "4px 8px", fontSize: 12, fontWeight: 700, flexShrink: 0, ...style
+      color, padding: "4px 8px", fontSize: 12, fontWeight: 700, flexShrink: 0
     }}>{children}</button>
   );
 }
 
-// ── Main App ────────────────────────────────────────────────
+function computeMonthlySummary(days) {
+  const monthMap = {};
+  for (const d of Object.keys(days).filter(d => d >= START_DATE)) {
+    const month = d.slice(0, 7);
+    const uExp = (days[d]?.expenses || []).reduce((s, e) => s + e.amount, 0);
+    const fExp = getFixedExpenses(d).reduce((s, e) => s + e.amount, 0);
+    if (!monthMap[month]) monthMap[month] = 0;
+    monthMap[month] += uExp + fExp;
+  }
+  return Object.entries(monthMap).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
 export default function BudgetApp() {
   const [authed, setAuthed] = useState(false);
   const [days, setDays] = useState({});
@@ -98,12 +108,10 @@ export default function BudgetApp() {
   const [showNotif, setShowNotif] = useState(false);
   const [notifText, setNotifText] = useState("");
 
-  // Check auth
   useEffect(() => {
     if (sessionStorage.getItem("budget_auth") === "1") setAuthed(true);
   }, []);
 
-  // Load from Firebase
   useEffect(() => {
     getDoc(DOC_REF()).then(snap => {
       if (snap.exists()) setDays(snap.data().days || {});
@@ -111,23 +119,16 @@ export default function BudgetApp() {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Save to Firebase
   const save = useCallback(async (newDays) => {
     setSaving(true);
     try {
       await setDoc(DOC_REF(), { days: newDays });
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
     setSaving(false);
   }, []);
 
-  function updateDays(newDays) {
-    setDays(newDays);
-    save(newDays);
-  }
+  function updateDays(newDays) { setDays(newDays); save(newDays); }
 
-  // ── Derived values ──
   const userExpenses = days[selectedDate]?.expenses || [];
   const fixedExpenses = getFixedExpenses(selectedDate);
   const allExpenses = [...userExpenses, ...fixedExpenses];
@@ -136,20 +137,17 @@ export default function BudgetApp() {
   const cumulative = computeCumulative(days, selectedDate);
   const cumulativeAfterToday = Math.round((cumulative + remainToday) * 100) / 100;
 
-  // ── CRUD ──
   function addExpense() {
     const amt = parseFloat(newAmount);
     if (!newDesc.trim() || isNaN(amt) || amt <= 0) return;
     const prev = days[selectedDate]?.expenses || [];
-    const newDays = { ...days, [selectedDate]: { expenses: [...prev, { desc: newDesc.trim(), amount: amt }] } };
-    updateDays(newDays);
+    updateDays({ ...days, [selectedDate]: { expenses: [...prev, { desc: newDesc.trim(), amount: amt }] } });
     setNewDesc(""); setNewAmount("");
   }
 
   function deleteExpense(idx) {
     const prev = days[selectedDate]?.expenses || [];
-    const newDays = { ...days, [selectedDate]: { expenses: prev.filter((_, i) => i !== idx) } };
-    updateDays(newDays);
+    updateDays({ ...days, [selectedDate]: { expenses: prev.filter((_, i) => i !== idx) } });
   }
 
   function startEdit(idx) {
@@ -162,12 +160,10 @@ export default function BudgetApp() {
     const amt = parseFloat(editAmount);
     if (!editDesc.trim() || isNaN(amt)) return;
     const prev = days[selectedDate]?.expenses || [];
-    const newDays = { ...days, [selectedDate]: { expenses: prev.map((e, i) => i === editIdx ? { desc: editDesc.trim(), amount: amt } : e) } };
-    updateDays(newDays);
+    updateDays({ ...days, [selectedDate]: { expenses: prev.map((e, i) => i === editIdx ? { desc: editDesc.trim(), amount: amt } : e) } });
     setEditIdx(null);
   }
 
-  // ── Notification ──
   function buildNotifText(dateStr) {
     const uExp = days[dateStr]?.expenses || [];
     const fExp = getFixedExpenses(dateStr);
@@ -190,6 +186,7 @@ export default function BudgetApp() {
   }
 
   const allDayKeys = Object.keys(days).filter(d => d >= START_DATE).sort().reverse();
+  const monthlySummary = computeMonthlySummary(days);
 
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
 
@@ -201,7 +198,6 @@ export default function BudgetApp() {
 
   return (
     <div style={{ background: "#0f1117", minHeight: "100vh" }}>
-      {/* Header */}
       <div style={{ background: "linear-gradient(135deg,#1a1d2e,#12151f)", borderBottom: "1px solid #2a2d3e", padding: "18px 16px 0", position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 480, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -228,7 +224,6 @@ export default function BudgetApp() {
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "14px 14px 80px" }}>
         {tab === "today" && <>
-          {/* Date */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <span style={{ color: "#6b7280", fontSize: 12 }}>日期</span>
             <input type="date" value={selectedDate}
@@ -236,7 +231,6 @@ export default function BudgetApp() {
               style={{ background: "#1a1d2e", border: "1px solid #2a2d3e", borderRadius: 8, color: "#e8eaf0", padding: "6px 10px", fontSize: 14 }} />
           </div>
 
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
             <StatCard label="今日花費" value={`$${Math.round(totalToday).toLocaleString()}`} sub={`預算 $${DAILY_BUDGET}`} accent="#f87171" />
             <StatCard label="今日剩餘" value={`$${Math.round(remainToday).toLocaleString()}`}
@@ -246,14 +240,12 @@ export default function BudgetApp() {
               sub="今日結算後預估" accent={cumulativeAfterToday >= 0 ? "#fbbf24" : "#f87171"} span />
           </div>
 
-          {/* Fixed expenses */}
           {fixedExpenses.length > 0 && (
             <div style={{ background: "#1a1d2e", borderRadius: 10, padding: "8px 12px", marginBottom: 10, border: "1px solid #818cf844", display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#818cf8" }}>🔒 固定攤提：{fixedExpenses.map(e => `${e.desc} $${e.amount}`).join("、")}</span>
             </div>
           )}
 
-          {/* Expense list */}
           <div style={{ background: "#1a1d2e", borderRadius: 12, padding: 12, marginBottom: 12, border: "1px solid #2a2d3e" }}>
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10, fontWeight: 600 }}>支出明細</div>
             {userExpenses.length === 0 && (
@@ -282,7 +274,6 @@ export default function BudgetApp() {
             ))}
           </div>
 
-          {/* Add expense */}
           <div style={{ background: "#1a1d2e", borderRadius: 12, padding: 12, marginBottom: 12, border: "1px solid #2a2d3e" }}>
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10, fontWeight: 600 }}>新增支出</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -299,7 +290,6 @@ export default function BudgetApp() {
             }}>＋ 新增</button>
           </div>
 
-          {/* Preview notify */}
           <button onClick={() => { setNotifText(buildNotifText(selectedDate)); setShowNotif(true); }} style={{
             width: "100%", background: "#1a1d2e", border: "1px solid #2a2d3e", borderRadius: 10,
             color: "#e8eaf0", padding: "11px 0", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
@@ -308,6 +298,26 @@ export default function BudgetApp() {
 
         {tab === "history" && (
           <div>
+            <div style={{ background: "#1a1d2e", borderRadius: 12, padding: 14, marginBottom: 16, border: "1px solid #2a2d3e" }}>
+              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 10 }}>📅 每月花費統計</div>
+              {monthlySummary.map(([month, total]) => {
+                const label = `${month.slice(0, 4)} 年 ${parseInt(month.slice(5))} 月`;
+                const daysInMonth = allDayKeys.filter(d => d.startsWith(month)).length;
+                return (
+                  <div key={month} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #2a2d3e22" }}>
+                    <div>
+                      <div style={{ fontSize: 14, color: "#e8eaf0", fontWeight: 600 }}>{label}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>共 {daysInMonth} 天有記錄</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#f87171" }}>${Math.round(total).toLocaleString()}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>平均 ${Math.round(total / daysInMonth).toLocaleString()}/天</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>共 {allDayKeys.length} 天有記錄</div>
             {allDayKeys.map(d => {
               const uExp = days[d]?.expenses || [];
@@ -348,7 +358,6 @@ export default function BudgetApp() {
         )}
       </div>
 
-      {/* Notification modal */}
       {showNotif && (
         <div onClick={() => setShowNotif(false)} style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
